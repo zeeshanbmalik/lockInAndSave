@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Z & E Budget</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --purple-deep: #2D1B69;
+    --purple-mid: #5B3FBD;
+    --purple-bright: #8B5CF6;
+    --purple-light: #C4B5FD;
+    --purple-faint: #EDE9FE;
+    --green: #10B981;
+    --red: #EF4444;
+    --amber: #F59E0B;
+    --bg: #F8F7FF;
+    --card: #FFFFFF;
+    --text: #1A1033;
+    --text-sub: #6B7280;
+    --border: #E5E0FF;
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+  .dark {
+    --bg: #0F0A1E;
+    --card: #1A1033;
+    --text: #F0EEFF;
+    --text-sub: #9CA3AF;
+    --border: #2D1B69;
+    --purple-faint: #1A1033;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    max-width: 430px;
+    margin: 0 auto;
+    transition: background 0.3s, color 0.3s;
+    overflow-x: hidden;
+  }
+
+  /* SCREENS */
+  .screen { display: none; min-height: 100vh; flex-direction: column; }
+  .screen.active { display: flex; }
+
+  /* SETUP / PIN SCREENS */
+  .centered-screen {
+    justify-content: center;
+    align-items: center;
+    padding: 32px 24px;
+    gap: 24px;
+    text-align: center;
+    background: linear-gradient(160deg, var(--purple-deep) 0%, #0F0A1E 100%);
+    color: white;
+  }
+  .logo { font-size: 48px; margin-bottom: 8px; }
+  .app-title { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .app-sub { font-size: 15px; opacity: 0.6; margin-top: 4px; }
+
+  /* PIN PAD */
+  .pin-display { display: flex; gap: 16px; margin: 24px 0 8px; }
+  .pin-dot {
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.4);
+    background: transparent;
+    transition: background 0.15s;
+  }
+  .pin-dot.filled { background: var(--purple-bright); border-color: var(--purple-bright); }
+  .pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; width: 100%; max-width: 280px; }
+  .pin-btn {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: white;
+    font-size: 22px;
+    font-weight: 500;
+    padding: 18px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background 0.1s;
+    backdrop-filter: blur(10px);
+  }
+  .pin-btn:active { background: rgba(255,255,255,0.2); }
+  .pin-btn.del { font-size: 18px; }
+  .pin-btn.empty { visibility: hidden; }
+  .pin-label { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+  .pin-hint { font-size: 13px; opacity: 0.5; }
+  .pin-error { color: #FF6B6B; font-size: 14px; min-height: 20px; }
+
+  /* USER SELECT */
+  .user-select { display: flex; gap: 16px; width: 100%; max-width: 320px; }
+  .user-btn {
+    flex: 1; padding: 20px 16px;
+    background: rgba(255,255,255,0.1);
+    border: 2px solid rgba(255,255,255,0.15);
+    border-radius: var(--radius);
+    color: white; cursor: pointer;
+    font-size: 28px; text-align: center;
+    transition: all 0.15s;
+  }
+  .user-btn:active, .user-btn.selected {
+    background: var(--purple-mid);
+    border-color: var(--purple-bright);
+  }
+  .user-btn span { display: block; font-size: 14px; margin-top: 6px; opacity: 0.8; }
+
+  /* HEADER */
+  .header {
+    padding: 56px 20px 16px;
+    background: linear-gradient(180deg, var(--purple-deep) 0%, var(--purple-mid) 100%);
+    color: white;
+    position: relative;
+  }
+  .header-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .header-greeting { font-size: 13px; opacity: 0.7; margin-bottom: 2px; }
+  .header-user { font-size: 20px; font-weight: 700; }
+  .header-actions { display: flex; gap: 10px; align-items: center; }
+  .icon-btn {
+    background: rgba(255,255,255,0.15);
+    border: none; color: white;
+    width: 36px; height: 36px; border-radius: 50%;
+    font-size: 16px; cursor: pointer; display: flex;
+    align-items: center; justify-content: center;
+    transition: background 0.15s;
+  }
+  .icon-btn:active { background: rgba(255,255,255,0.25); }
+
+  /* WEEK BUDGET CARD */
+  .budget-hero {
+    margin: 16px 20px 0;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: var(--radius);
+    padding: 20px;
+    color: white;
+    backdrop-filter: blur(10px);
+  }
+  .budget-week-label { font-size: 12px; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.8px; }
+  .budget-amount { font-size: 52px; font-weight: 700; letter-spacing: -2px; line-height: 1; margin: 8px 0 4px; }
+  .budget-amount .currency { font-size: 28px; font-weight: 400; vertical-align: super; margin-right: 2px; }
+  .budget-sub { font-size: 13px; opacity: 0.65; }
+  .budget-bar-wrap { margin-top: 16px; }
+  .budget-bar-labels { display: flex; justify-content: space-between; font-size: 11px; opacity: 0.6; margin-bottom: 6px; }
+  .budget-bar { height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; overflow: hidden; }
+  .budget-bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; background: var(--green); }
+  .budget-bar-fill.amber { background: var(--amber); }
+  .budget-bar-fill.red { background: var(--red); }
+
+  /* ROLLOVER BADGE */
+  .rollover-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border-radius: 20px;
+    font-size: 13px; font-weight: 600; margin-top: 10px;
+  }
+  .rollover-badge.positive { background: rgba(16,185,129,0.2); color: #34D399; }
+  .rollover-badge.negative { background: rgba(239,68,68,0.2); color: #FC8181; }
+
+  /* MAIN CONTENT */
+  .main { flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* CARDS */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    transition: background 0.3s, border 0.3s;
+  }
+  .card-title {
+    font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--text-sub); margin-bottom: 14px;
+  }
+
+  /* QUICK ADD */
+  .quick-add { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .add-btn {
+    padding: 14px 12px; border: none; border-radius: var(--radius-sm);
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: opacity 0.15s;
+  }
+  .add-btn:active { opacity: 0.8; }
+  .add-btn.spend { background: #FEE2E2; color: var(--red); }
+  .add-btn.income { background: #D1FAE5; color: var(--green); }
+  .dark .add-btn.spend { background: rgba(239,68,68,0.15); }
+  .dark .add-btn.income { background: rgba(16,185,129,0.15); }
+
+  /* TRANSACTIONS */
+  .tx-list { display: flex; flex-direction: column; gap: 10px; }
+  .tx-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    transition: background 0.3s;
+  }
+  .tx-icon {
+    width: 38px; height: 38px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+  }
+  .tx-icon.spend { background: #FEE2E2; }
+  .tx-icon.income { background: #D1FAE5; }
+  .dark .tx-icon.spend { background: rgba(239,68,68,0.15); }
+  .dark .tx-icon.income { background: rgba(16,185,129,0.15); }
+  .tx-info { flex: 1; min-width: 0; }
+  .tx-title { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tx-meta { font-size: 12px; color: var(--text-sub); margin-top: 2px; }
+  .tx-amount { font-size: 16px; font-weight: 700; flex-shrink: 0; }
+  .tx-amount.spend { color: var(--red); }
+  .tx-amount.income { color: var(--green); }
+  .tx-delete { background: none; border: none; color: var(--text-sub); font-size: 18px; cursor: pointer; padding: 4px; opacity: 0.5; }
+  .tx-delete:active { opacity: 1; }
+  .empty-state { text-align: center; padding: 24px; color: var(--text-sub); font-size: 14px; }
+
+  /* MONTHLY STATS */
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat-item { background: var(--bg); border-radius: var(--radius-sm); padding: 14px; transition: background 0.3s; }
+  .stat-label { font-size: 11px; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 4px; }
+  .stat-value { font-size: 20px; font-weight: 700; }
+  .stat-value.purple { color: var(--purple-bright); }
+  .stat-value.green { color: var(--green); }
+  .stat-value.red { color: var(--red); }
+
+  /* DEBT TRACKER */
+  .debt-track { padding: 4px 0; }
+  .debt-numbers { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; }
+  .debt-current { font-size: 26px; font-weight: 700; color: var(--red); }
+  .debt-target { font-size: 13px; color: var(--text-sub); }
+  .progress-bar { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; margin-bottom: 8px; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--purple-mid), var(--purple-bright)); border-radius: 5px; transition: width 0.6s ease; }
+  .debt-eta { font-size: 12px; color: var(--text-sub); }
+
+  /* BOTTOM NAV */
+  .bottom-nav {
+    display: flex; background: var(--card); border-top: 1px solid var(--border);
+    padding: 8px 0 28px; position: sticky; bottom: 0;
+    transition: background 0.3s, border 0.3s;
+  }
+  .nav-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    background: none; border: none; color: var(--text-sub);
+    font-size: 10px; font-weight: 500; cursor: pointer; padding: 8px 4px;
+    transition: color 0.15s;
+  }
+  .nav-btn.active { color: var(--purple-bright); }
+  .nav-btn svg { width: 22px; height: 22px; }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: none; align-items: flex-end; justify-content: center;
+    z-index: 100; backdrop-filter: blur(4px);
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--card); border-radius: 24px 24px 0 0;
+    padding: 20px 24px 40px; width: 100%; max-width: 430px;
+    animation: slideUp 0.25s ease;
+    transition: background 0.3s;
+  }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .modal-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 20px; }
+  .modal-title { font-size: 20px; font-weight: 700; margin-bottom: 20px; }
+  .modal-type-toggle { display: flex; gap: 0; background: var(--bg); border-radius: var(--radius-sm); padding: 4px; margin-bottom: 20px; }
+  .modal-type-btn {
+    flex: 1; padding: 10px; border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    background: transparent; color: var(--text-sub); transition: all 0.15s;
+  }
+  .modal-type-btn.active.spend { background: var(--red); color: white; }
+  .modal-type-btn.active.income { background: var(--green); color: white; }
+  .input-group { margin-bottom: 16px; }
+  .input-label { font-size: 13px; font-weight: 600; color: var(--text-sub); margin-bottom: 8px; display: block; }
+  .input-field {
+    width: 100%; padding: 14px 16px; background: var(--bg);
+    border: 2px solid var(--border); border-radius: var(--radius-sm);
+    font-size: 16px; color: var(--text); outline: none;
+    transition: border 0.15s, background 0.3s;
+    -webkit-appearance: none;
+  }
+  .input-field:focus { border-color: var(--purple-bright); }
+  .amount-input-wrap { position: relative; }
+  .amount-prefix {
+    position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+    font-size: 18px; font-weight: 600; color: var(--text-sub);
+  }
+  .amount-input-wrap .input-field { padding-left: 30px; font-size: 22px; font-weight: 700; }
+  .submit-btn {
+    width: 100%; padding: 16px; background: var(--purple-mid);
+    color: white; border: none; border-radius: var(--radius);
+    font-size: 17px; font-weight: 700; cursor: pointer;
+    transition: background 0.15s; margin-top: 4px;
+  }
+  .submit-btn:active { background: var(--purple-deep); }
+  .submit-btn:disabled { opacity: 0.5; }
+
+  /* DECLARATION MODAL */
+  .declaration-header {
+    text-align: center; padding: 8px 0 20px;
+    border-bottom: 1px solid var(--border); margin-bottom: 20px;
+  }
+  .declaration-emoji { font-size: 40px; margin-bottom: 8px; }
+  .declaration-title { font-size: 20px; font-weight: 700; }
+  .declaration-sub { font-size: 14px; color: var(--text-sub); margin-top: 4px; }
+  .user-declaration { padding: 14px; background: var(--bg); border-radius: var(--radius-sm); margin-bottom: 10px; }
+  .user-decl-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .user-decl-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--purple-mid), var(--purple-bright));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: white;
+  }
+  .user-decl-name { font-size: 15px; font-weight: 600; }
+  .user-decl-status { font-size: 12px; color: var(--text-sub); }
+  .decl-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .decl-input-wrap { }
+  .decl-input-label { font-size: 11px; font-weight: 600; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; display: block; }
+  .waiting-indicator { text-align: center; padding: 12px; color: var(--text-sub); font-size: 13px; }
+  .waiting-dots { animation: pulse 1.5s infinite; display: inline-block; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  /* HISTORY PAGE */
+  .page-header { padding: 56px 20px 16px; }
+  .page-title { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .page-sub { font-size: 14px; color: var(--text-sub); margin-top: 4px; }
+  .week-group { margin-bottom: 20px; }
+  .week-group-label { font-size: 12px; font-weight: 600; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; }
+
+  /* SETTINGS PAGE */
+  .settings-section { margin-bottom: 24px; }
+  .settings-title { font-size: 13px; font-weight: 600; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; }
+  .settings-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; background: var(--card);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    margin-bottom: 8px; transition: background 0.3s, border 0.3s;
+  }
+  .settings-item-left { display: flex; align-items: center; gap: 12px; }
+  .settings-icon { font-size: 20px; }
+  .settings-label { font-size: 15px; font-weight: 500; }
+  .settings-value { font-size: 14px; color: var(--text-sub); }
+  /* TOGGLE */
+  .toggle { width: 44px; height: 26px; background: var(--border); border-radius: 13px; position: relative; cursor: pointer; transition: background 0.2s; border: none; }
+  .toggle.on { background: var(--purple-bright); }
+  .toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; background: white; border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+  .toggle.on::after { transform: translateX(18px); }
+
+  /* NOTIFICATION BANNER */
+  .notification {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--purple-deep); color: white;
+    padding: 12px 20px; border-radius: 20px; font-size: 14px; font-weight: 600;
+    z-index: 200; white-space: nowrap;
+    animation: notifIn 0.3s ease;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  @keyframes notifIn { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+  /* LOADING */
+  .loading-screen {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100vh; background: linear-gradient(160deg, var(--purple-deep) 0%, #0F0A1E 100%);
+    color: white; gap: 16px;
+  }
+  .spinner { width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.2); border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-screen" id="loadingScreen">
+  <div style="font-size:40px">💜</div>
+  <div class="spinner"></div>
+</div>
+
+<!-- SETUP: USER SELECT -->
+<div class="screen centered-screen" id="setupUserScreen">
+  <div class="logo">💜</div>
+  <div class="app-title">Z & E Budget</div>
+  <div class="app-sub">Who are you?</div>
+  <div class="user-select">
+    <button class="user-btn" onclick="selectSetupUser('Z')">
+      🧑 <span>Z</span>
+    </button>
+    <button class="user-btn" onclick="selectSetupUser('E')">
+      🧑 <span>E</span>
+    </button>
+  </div>
+</div>
+
+<!-- SETUP: CREATE PIN -->
+<div class="screen centered-screen" id="setupPinScreen">
+  <div class="logo">🔒</div>
+  <div class="pin-label" id="setupPinLabel">Create your PIN</div>
+  <div class="pin-hint" id="setupPinHint">Choose a 4-digit PIN</div>
+  <div class="pin-display" id="setupPinDisplay">
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+  </div>
+  <div class="pin-error" id="setupPinError"></div>
+  <div class="pin-pad">
+    <button class="pin-btn" onclick="setupPinInput('1')">1</button>
+    <button class="pin-btn" onclick="setupPinInput('2')">2</button>
+    <button class="pin-btn" onclick="setupPinInput('3')">3</button>
+    <button class="pin-btn" onclick="setupPinInput('4')">4</button>
+    <button class="pin-btn" onclick="setupPinInput('5')">5</button>
+    <button class="pin-btn" onclick="setupPinInput('6')">6</button>
+    <button class="pin-btn" onclick="setupPinInput('7')">7</button>
+    <button class="pin-btn" onclick="setupPinInput('8')">8</button>
+    <button class="pin-btn" onclick="setupPinInput('9')">9</button>
+    <button class="pin-btn empty"></button>
+    <button class="pin-btn" onclick="setupPinInput('0')">0</button>
+    <button class="pin-btn del" onclick="setupPinDelete()">⌫</button>
+  </div>
+</div>
+
+<!-- LOGIN: USER SELECT -->
+<div class="screen centered-screen" id="loginUserScreen">
+  <div class="logo">💜</div>
+  <div class="app-title">Z & E Budget</div>
+  <div class="app-sub">Who's logging in?</div>
+  <div class="user-select">
+    <button class="user-btn" onclick="selectLoginUser('Z')">
+      🧑 <span>Z</span>
+    </button>
+    <button class="user-btn" onclick="selectLoginUser('E')">
+      🧑 <span>E</span>
+    </button>
+  </div>
+</div>
+
+<!-- LOGIN: ENTER PIN -->
+<div class="screen centered-screen" id="loginPinScreen">
+  <div class="logo">🔒</div>
+  <div class="pin-label" id="loginPinLabel">Enter your PIN</div>
+  <div class="pin-hint" id="loginPinHint"></div>
+  <div class="pin-display" id="loginPinDisplay">
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+  </div>
+  <div class="pin-error" id="loginPinError"></div>
+  <div class="pin-pad">
+    <button class="pin-btn" onclick="loginPinInput('1')">1</button>
+    <button class="pin-btn" onclick="loginPinInput('2')">2</button>
+    <button class="pin-btn" onclick="loginPinInput('3')">3</button>
+    <button class="pin-btn" onclick="loginPinInput('4')">4</button>
+    <button class="pin-btn" onclick="loginPinInput('5')">5</button>
+    <button class="pin-btn" onclick="loginPinInput('6')">6</button>
+    <button class="pin-btn" onclick="loginPinInput('7')">7</button>
+    <button class="pin-btn" onclick="loginPinInput('8')">8</button>
+    <button class="pin-btn" onclick="loginPinInput('9')">9</button>
+    <button class="pin-btn empty"></button>
+    <button class="pin-btn" onclick="loginPinInput('0')">0</button>
+    <button class="pin-btn del" onclick="loginPinDelete()">⌫</button>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div class="screen" id="appScreen">
+
+  <!-- HOME TAB -->
+  <div id="homeTab">
+    <div class="header">
+      <div class="header-top">
+        <div>
+          <div class="header-greeting" id="headerGreeting">Good morning</div>
+          <div class="header-user" id="headerUser">Z & E</div>
+        </div>
+        <div class="header-actions">
+          <button class="icon-btn" onclick="toggleDark()" title="Toggle theme">🌙</button>
+          <button class="icon-btn" onclick="logout()" title="Lock">🔒</button>
+        </div>
+      </div>
+
+      <div class="budget-hero">
+        <div class="budget-week-label" id="weekLabel">This Week</div>
+        <div class="budget-amount">
+          <span class="currency">£</span><span id="weekBudgetDisplay">0</span>
+        </div>
+        <div class="budget-sub" id="budgetSub">remaining this week</div>
+        <div id="rolloverBadge"></div>
+        <div class="budget-bar-wrap">
+          <div class="budget-bar-labels">
+            <span id="spentLabel">£0 spent</span>
+            <span id="totalLabel">£0 total</span>
+          </div>
+          <div class="budget-bar">
+            <div class="budget-bar-fill" id="budgetBarFill" style="width:0%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="main">
+      <!-- Quick add -->
+      <div class="card">
+        <div class="card-title">Add Transaction</div>
+        <div class="quick-add">
+          <button class="add-btn spend" onclick="openModal('spend')">➖ Spending</button>
+          <button class="add-btn income" onclick="openModal('income')">➕ Income</button>
+        </div>
+      </div>
+
+      <!-- This week transactions -->
+      <div class="card">
+        <div class="card-title">This Week</div>
+        <div class="tx-list" id="weekTxList">
+          <div class="empty-state">No transactions yet this week</div>
+        </div>
+      </div>
+
+      <!-- Monthly snapshot -->
+      <div class="card">
+        <div class="card-title">Monthly Snapshot</div>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <div class="stat-label">Weekly Budget</div>
+            <div class="stat-value purple" id="statWeekly">£0</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Monthly Left</div>
+            <div class="stat-value green" id="statMonthly">£0</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Fixed Costs</div>
+            <div class="stat-value" id="statFixed">£2,547.98</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Debt Payment</div>
+            <div class="stat-value red">£1,000</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Debt tracker -->
+      <div class="card">
+        <div class="card-title">Debt Tracker</div>
+        <div class="debt-track">
+          <div class="debt-numbers">
+            <div class="debt-current" id="debtCurrent">-£10,609</div>
+            <div class="debt-target">Target: £0</div>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="debtProgress" style="width:0%"></div>
+          </div>
+          <div class="debt-eta" id="debtEta">Estimated debt-free: calculating...</div>
+        </div>
+      </div>
+
+      <div style="height: 16px;"></div>
+    </div>
+  </div>
+
+  <!-- HISTORY TAB -->
+  <div id="historyTab" style="display:none; flex:1; overflow-y:auto;">
+    <div class="page-header">
+      <div class="page-title">History</div>
+      <div class="page-sub">All past transactions</div>
+    </div>
+    <div style="padding: 0 20px 100px;" id="historyList">
+      <div class="empty-state">No transactions yet</div>
+    </div>
+  </div>
+
+  <!-- SETTINGS TAB -->
+  <div id="settingsTab" style="display:none; flex:1; overflow-y:auto;">
+    <div class="page-header">
+      <div class="page-title">Settings</div>
+      <div class="page-sub">Manage your budget</div>
+    </div>
+    <div style="padding: 0 20px 100px;">
+      <div class="settings-section">
+        <div class="settings-title">Appearance</div>
+        <div class="settings-item">
+          <div class="settings-item-left">
+            <span class="settings-icon">🌙</span>
+            <span class="settings-label">Dark Mode</span>
+          </div>
+          <button class="toggle" id="darkToggle" onclick="toggleDark()"></button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-title">Budget</div>
+        <div class="settings-item">
+          <div class="settings-item-left">
+            <span class="settings-icon">💰</span>
+            <span class="settings-label">Monthly Income</span>
+          </div>
+          <span class="settings-value">£5,900</span>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item-left">
+            <span class="settings-icon">🏠</span>
+            <span class="settings-label">Fixed Outgoings</span>
+          </div>
+          <span class="settings-value">£2,547.98</span>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item-left">
+            <span class="settings-icon">📉</span>
+            <span class="settings-label">Debt Repayment</span>
+          </div>
+          <span class="settings-value">£1,000/mo</span>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item-left">
+            <span class="settings-icon">📊</span>
+            <span class="settings-label">Weekly Budget</span>
+          </div>
+          <span class="settings-value">£<span id="settingsWeekly">0</span></span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-title">Monthly Declaration</div>
+        <div class="settings-item" style="cursor:pointer;" onclick="openDeclarationModal()">
+          <div class="settings-item-left">
+            <span class="settings-icon">📋</span>
+            <span class="settings-label">Declare Net Worth</span>
+          </div>
+          <span class="settings-value">→</span>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item-left">
+            <span class="settings-icon">💜</span>
+            <span class="settings-label">Last Updated</span>
+          </div>
+          <span class="settings-value" id="lastDeclared">Never</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-title">Account</div>
+        <div class="settings-item" style="cursor:pointer;" onclick="changePinFlow()">
+          <div class="settings-item-left">
+            <span class="settings-icon">🔑</span>
+            <span class="settings-label">Change My PIN</span>
+          </div>
+          <span class="settings-value">→</span>
+        </div>
+        <div class="settings-item" style="cursor:pointer;" onclick="logout()">
+          <div class="settings-item-left">
+            <span class="settings-icon">🔒</span>
+            <span class="settings-label">Lock App</span>
+          </div>
+          <span class="settings-value">→</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div class="bottom-nav">
+    <button class="nav-btn active" id="navHome" onclick="switchTab('home')">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Home
+    </button>
+    <button class="nav-btn" id="navHistory" onclick="switchTab('history')">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      History
+    </button>
+    <button class="nav-btn" id="navSettings" onclick="switchTab('settings')">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Settings
+    </button>
+  </div>
+</div>
+
+<!-- TRANSACTION MODAL -->
+<div class="modal-overlay" id="txModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-type-toggle">
+      <button class="modal-type-btn active spend" id="modalSpendBtn" onclick="setModalType('spend')">➖ Spending</button>
+      <button class="modal-type-btn income" id="modalIncomeBtn" onclick="setModalType('income')">➕ Income</button>
+    </div>
+    <div class="input-group">
+      <label class="input-label">Title</label>
+      <input class="input-field" id="txTitle" type="text" placeholder="e.g. Groceries, Dinner out..." maxlength="40">
+    </div>
+    <div class="input-group">
+      <label class="input-label">Amount</label>
+      <div class="amount-input-wrap">
+        <span class="amount-prefix">£</span>
+        <input class="input-field" id="txAmount" type="number" inputmode="decimal" placeholder="0.00" min="0" step="0.01">
+      </div>
+    </div>
+    <button class="submit-btn" id="txSubmitBtn" onclick="submitTransaction()">Add Transaction</button>
+    <button style="width:100%; margin-top:10px; background:none; border:none; color:var(--text-sub); font-size:15px; cursor:pointer; padding:8px;" onclick="closeModal('txModal')">Cancel</button>
+  </div>
+</div>
+
+<!-- DECLARATION MODAL -->
+<div class="modal-overlay" id="declarationModal">
+  <div class="modal" style="max-height: 85vh; overflow-y: auto;">
+    <div class="modal-handle"></div>
+    <div class="declaration-header">
+      <div class="declaration-emoji">📊</div>
+      <div class="declaration-title">Monthly Declaration</div>
+      <div class="declaration-sub" id="declarationMonth">June 2026</div>
+    </div>
+
+    <div id="declarationContent">
+      <!-- Z's section -->
+      <div class="user-declaration" id="declZ">
+        <div class="user-decl-header">
+          <div class="user-decl-avatar">Z</div>
+          <div>
+            <div class="user-decl-name">Z</div>
+            <div class="user-decl-status" id="declZStatus">Not submitted</div>
+          </div>
+        </div>
+        <div class="decl-inputs" id="declZInputs">
+          <div class="decl-input-wrap">
+            <label class="decl-input-label">Savings (£)</label>
+            <input class="input-field" id="declZSavings" type="number" inputmode="decimal" placeholder="0.00" min="0">
+          </div>
+          <div class="decl-input-wrap">
+            <label class="decl-input-label">Debt (£)</label>
+            <input class="input-field" id="declZDebt" type="number" inputmode="decimal" placeholder="0.00" min="0">
+          </div>
+        </div>
+      </div>
+
+      <!-- E's section -->
+      <div class="user-declaration" id="declE">
+        <div class="user-decl-header">
+          <div class="user-decl-avatar" style="background: linear-gradient(135deg, #8B5CF6, #C4B5FD);">E</div>
+          <div>
+            <div class="user-decl-name">E</div>
+            <div class="user-decl-status" id="declEStatus">Not submitted</div>
+          </div>
+        </div>
+        <div class="decl-inputs" id="declEInputs">
+          <div class="decl-input-wrap">
+            <label class="decl-input-label">Savings (£)</label>
+            <input class="input-field" id="declESavings" type="number" inputmode="decimal" placeholder="0.00" min="0">
+          </div>
+          <div class="decl-input-wrap">
+            <label class="decl-input-label">Debt (£)</label>
+            <input class="input-field" id="declEDebt" type="number" inputmode="decimal" placeholder="0.00" min="0">
+          </div>
+        </div>
+      </div>
+
+      <div class="waiting-indicator" id="waitingIndicator" style="display:none;">
+        <span class="waiting-dots">⏳</span> Waiting for both Z and E to submit...
+      </div>
+
+      <div id="combinedNetDisplay" style="display:none; padding:14px; background:var(--bg); border-radius:var(--radius-sm); margin-top:10px; text-align:center;">
+        <div style="font-size:12px; color:var(--text-sub); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:6px;">Combined Net Worth</div>
+        <div style="font-size:28px; font-weight:700;" id="combinedNetValue">£0</div>
+      </div>
+    </div>
+
+    <button class="submit-btn" id="declSubmitBtn" onclick="submitDeclaration()" style="margin-top:16px;">Submit My Figures</button>
+    <button style="width:100%; margin-top:10px; background:none; border:none; color:var(--text-sub); font-size:15px; cursor:pointer; padding:8px;" onclick="closeModal('declarationModal')">Close</button>
+  </div>
+</div>
+
+<script>
+// ─── CONFIG ────────────────────────────────────────────────────────
+// REPLACE THESE WITH YOUR SUPABASE CREDENTIALS
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+const MONTHLY_INCOME = 5900;
+const FIXED_COSTS = 2547.98;
+const DEBT_REPAYMENT = 1000;
+const MONTHLY_SPENDABLE = MONTHLY_INCOME - FIXED_COSTS - DEBT_REPAYMENT; // £2,352.02
+const WEEKLY_BASE = MONTHLY_SPENDABLE * 12 / 52; // £542.77
+
+// ─── SUPABASE ──────────────────────────────────────────────────────
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ─── STATE ─────────────────────────────────────────────────────────
+let currentUser = null;
+let isDark = localStorage.getItem('dark') === 'true';
+let setupUser = null;
+let setupPin1 = '';
+let setupPin2 = '';
+let setupStep = 'create'; // 'create' | 'confirm'
+let loginUser = null;
+let loginPin = '';
+let modalType = 'spend';
+let weekTransactions = [];
+let allTransactions = [];
+let currentNet = -5109;
+let debtAmount = 10609;
+
+// ─── INIT ──────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  if (isDark) document.body.classList.add('dark');
+  updateDarkToggle();
+
+  const pinsSet = localStorage.getItem('pins');
+  if (!pinsSet) {
+    show('setupUserScreen');
+  } else {
+    show('loginUserScreen');
+  }
+  hide('loadingScreen');
+});
+
+function hide(id) { document.getElementById(id).style.display = 'none'; }
+function show(id) {
+  ['loadingScreen','setupUserScreen','setupPinScreen','loginUserScreen','loginPinScreen','appScreen']
+    .forEach(s => {
+      const el = document.getElementById(s);
+      if (el) el.style.display = 'none';
+    });
+  const el = document.getElementById(id);
+  if (el) { el.style.display = id === 'appScreen' ? 'flex' : 'flex'; el.classList.add('active'); }
+}
+
+// ─── SETUP ─────────────────────────────────────────────────────────
+function selectSetupUser(user) {
+  setupUser = user;
+  setupPin1 = '';
+  setupPin2 = '';
+  setupStep = 'create';
+  document.getElementById('setupPinLabel').textContent = `${user}, create your PIN`;
+  document.getElementById('setupPinHint').textContent = 'Choose a 4-digit PIN';
+  updatePinDisplay('setupPinDisplay', '');
+  document.getElementById('setupPinError').textContent = '';
+  show('setupPinScreen');
+}
+
+function setupPinInput(digit) {
+  const current = setupStep === 'create' ? setupPin1 : setupPin2;
+  if (current.length >= 4) return;
+  if (setupStep === 'create') {
+    setupPin1 += digit;
+    updatePinDisplay('setupPinDisplay', setupPin1);
+    if (setupPin1.length === 4) {
+      setTimeout(() => {
+        setupStep = 'confirm';
+        setupPin2 = '';
+        document.getElementById('setupPinLabel').textContent = 'Confirm your PIN';
+        document.getElementById('setupPinHint').textContent = 'Enter the same PIN again';
+        updatePinDisplay('setupPinDisplay', '');
+      }, 200);
+    }
+  } else {
+    setupPin2 += digit;
+    updatePinDisplay('setupPinDisplay', setupPin2);
+    if (setupPin2.length === 4) {
+      setTimeout(() => confirmSetupPin(), 200);
+    }
+  }
+}
+
+function setupPinDelete() {
+  if (setupStep === 'create') {
+    setupPin1 = setupPin1.slice(0, -1);
+    updatePinDisplay('setupPinDisplay', setupPin1);
+  } else {
+    setupPin2 = setupPin2.slice(0, -1);
+    updatePinDisplay('setupPinDisplay', setupPin2);
+  }
+}
+
+function confirmSetupPin() {
+  if (setupPin1 !== setupPin2) {
+    document.getElementById('setupPinError').textContent = 'PINs don\'t match. Try again.';
+    setupStep = 'create';
+    setupPin1 = '';
+    setupPin2 = '';
+    document.getElementById('setupPinLabel').textContent = `${setupUser}, create your PIN`;
+    document.getElementById('setupPinHint').textContent = 'Choose a 4-digit PIN';
+    updatePinDisplay('setupPinDisplay', '');
+    return;
+  }
+  const pins = JSON.parse(localStorage.getItem('pins') || '{}');
+  pins[setupUser] = setupPin1;
+  localStorage.setItem('pins', JSON.stringify(pins));
+  showNotification(`${setupUser}'s PIN set! ✓`);
+  // Check if both PINs set
+  if (pins['Z'] && pins['E']) {
+    setTimeout(() => { currentUser = setupUser; enterApp(); }, 800);
+  } else {
+    const other = setupUser === 'Z' ? 'E' : 'Z';
+    setTimeout(() => {
+      setupUser = null; setupPin1 = ''; setupPin2 = ''; setupStep = 'create';
+      show('setupUserScreen');
+    }, 800);
+  }
+}
+
+// ─── LOGIN ─────────────────────────────────────────────────────────
+function selectLoginUser(user) {
+  loginUser = user;
+  loginPin = '';
+  document.getElementById('loginPinLabel').textContent = `Hi ${user}! Enter your PIN`;
+  document.getElementById('loginPinHint').textContent = '';
+  document.getElementById('loginPinError').textContent = '';
+  updatePinDisplay('loginPinDisplay', '');
+  show('loginPinScreen');
+}
+
+function loginPinInput(digit) {
+  if (loginPin.length >= 4) return;
+  loginPin += digit;
+  updatePinDisplay('loginPinDisplay', loginPin);
+  if (loginPin.length === 4) setTimeout(() => checkLogin(), 200);
+}
+
+function loginPinDelete() {
+  loginPin = loginPin.slice(0, -1);
+  updatePinDisplay('loginPinDisplay', loginPin);
+}
+
+function checkLogin() {
+  const pins = JSON.parse(localStorage.getItem('pins') || '{}');
+  if (pins[loginUser] === loginPin) {
+    currentUser = loginUser;
+    enterApp();
+  } else {
+    document.getElementById('loginPinError').textContent = 'Incorrect PIN. Try again.';
+    loginPin = '';
+    updatePinDisplay('loginPinDisplay', '');
+  }
+}
+
+function logout() {
+  currentUser = null;
+  loginPin = '';
+  updatePinDisplay('loginPinDisplay', '');
+  document.getElementById('loginPinError').textContent = '';
+  show('loginUserScreen');
+}
+
+// ─── PIN DISPLAY ───────────────────────────────────────────────────
+function updatePinDisplay(id, value) {
+  const dots = document.getElementById(id).querySelectorAll('.pin-dot');
+  dots.forEach((d, i) => d.classList.toggle('filled', i < value.length));
+}
+
+// ─── APP ENTRY ─────────────────────────────────────────────────────
+async function enterApp() {
+  show('appScreen');
+  updateGreeting();
+  checkMonthlyDeclaration();
+  await loadData();
+}
+
+function updateGreeting() {
+  const h = new Date().getHours();
+  const greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  document.getElementById('headerGreeting').textContent = greeting;
+  document.getElementById('headerUser').textContent = `${currentUser} 💜`;
+}
+
+// ─── DATA ──────────────────────────────────────────────────────────
+async function loadData() {
+  const weekStart = getWeekStart();
+  
+  // Load week transactions
+  const { data: weekData } = await db
+    .from('transactions')
+    .select('*')
+    .eq('week_start', weekStart)
+    .order('created_at', { ascending: false });
+
+  weekTransactions = weekData || [];
+
+  // Load all transactions for history
+  const { data: allData } = await db
+    .from('transactions')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(200);
+
+  allTransactions = allData || [];
+
+  // Load latest declaration
+  const { data: declData } = await db
+    .from('monthly_declarations')
+    .select('*')
+    .order('submitted_at', { ascending: false })
+    .limit(4);
+
+  if (declData && declData.length > 0) {
+    // Calculate combined net from latest month
+    const thisMonth = declData[0].month;
+    const monthDecls = declData.filter(d => d.month === thisMonth);
+    if (monthDecls.length === 2) {
+      const total = monthDecls.reduce((s, d) => s + (d.savings - d.debt), 0);
+      currentNet = total;
+      debtAmount = monthDecls.reduce((s, d) => s + d.debt, 0);
+      document.getElementById('lastDeclared').textContent = formatDate(declData[0].submitted_at);
+    }
+  }
+
+  // Load rollover from previous weeks
+  const rollover = await calculateRollover(weekStart);
+
+  renderHome(rollover);
+  renderHistory();
+  renderSettings();
+}
+
+async function calculateRollover(currentWeekStart) {
+  // Get all past week transactions
+  const { data } = await db
+    .from('transactions')
+    .select('*')
+    .lt('week_start', currentWeekStart)
+    .order('week_start', { ascending: true });
+
+  if (!data || data.length === 0) return 0;
+
+  // Group by week and sum up surplus/deficit
+  const weeks = {};
+  data.forEach(tx => {
+    if (!weeks[tx.week_start]) weeks[tx.week_start] = 0;
+    if (tx.type === 'spend') weeks[tx.week_start] -= tx.amount;
+    else weeks[tx.week_start] += tx.amount;
+  });
+
+  let rollover = 0;
+  Object.values(weeks).forEach(weekNet => {
+    rollover += WEEKLY_BASE + weekNet; // surplus if positive, deficit if negative
+  });
+
+  return rollover;
+}
+
+// ─── RENDER HOME ───────────────────────────────────────────────────
+function renderHome(rollover = 0) {
+  const spent = weekTransactions.filter(t => t.type === 'spend').reduce((s, t) => s + Number(t.amount), 0);
+  const income = weekTransactions.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
+  const totalBudget = WEEKLY_BASE + rollover;
+  const remaining = totalBudget - spent + income;
+  const pct = Math.min(100, Math.max(0, (spent / totalBudget) * 100));
+
+  const weekStart = getWeekStart();
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  document.getElementById('weekLabel').textContent =
+    `${formatShort(new Date(weekStart))} – ${formatShort(weekEnd)}`;
+
+  document.getElementById('weekBudgetDisplay').textContent = Math.abs(remaining).toFixed(2);
+  document.getElementById('budgetSub').textContent = remaining >= 0 ? 'remaining this week' : 'overspent this week';
+
+  // Bar
+  const fill = document.getElementById('budgetBarFill');
+  fill.style.width = pct + '%';
+  fill.className = 'budget-bar-fill' + (pct > 90 ? ' red' : pct > 70 ? ' amber' : '');
+
+  document.getElementById('spentLabel').textContent = `£${spent.toFixed(2)} spent`;
+  document.getElementById('totalLabel').textContent = `£${totalBudget.toFixed(2)} total`;
+
+  // Rollover badge
+  const badge = document.getElementById('rolloverBadge');
+  if (Math.abs(rollover) > 0.01) {
+    badge.innerHTML = `<div class="rollover-badge ${rollover >= 0 ? 'positive' : 'negative'}">${rollover >= 0 ? '↑' : '↓'} £${Math.abs(rollover).toFixed(2)} ${rollover >= 0 ? 'rolled over' : 'deficit carried'}</div>`;
+  } else {
+    badge.innerHTML = '';
+  }
+
+  // Transactions
+  const list = document.getElementById('weekTxList');
+  if (weekTransactions.length === 0) {
+    list.innerHTML = '<div class="empty-state">No transactions yet this week</div>';
+  } else {
+    list.innerHTML = weekTransactions.map(tx => `
+      <div class="tx-item">
+        <div class="tx-icon ${tx.type}">${tx.type === 'spend' ? '🛒' : '💰'}</div>
+        <div class="tx-info">
+          <div class="tx-title">${escHtml(tx.title)}</div>
+          <div class="tx-meta">${tx.user_id} · ${formatTime(tx.created_at)}</div>
+        </div>
+        <div class="tx-amount ${tx.type}">${tx.type === 'spend' ? '-' : '+'}£${Number(tx.amount).toFixed(2)}</div>
+        <button class="tx-delete" onclick="deleteTransaction('${tx.id}')">×</button>
+      </div>
+    `).join('');
+  }
+
+  // Stats
+  document.getElementById('statWeekly').textContent = `£${WEEKLY_BASE.toFixed(2)}`;
+  const monthStart = new Date(); monthStart.setDate(1);
+  const monthSpent = allTransactions
+    .filter(t => t.type === 'spend' && new Date(t.created_at) >= monthStart)
+    .reduce((s, t) => s + Number(t.amount), 0);
+  document.getElementById('statMonthly').textContent = `£${(MONTHLY_SPENDABLE - monthSpent).toFixed(2)}`;
+
+  // Debt tracker
+  const totalDebt = 10609; // initial
+  document.getElementById('debtCurrent').textContent = currentNet < 0 ? `-£${Math.abs(currentNet).toFixed(0)}` : `+£${currentNet.toFixed(0)}`;
+  const progress = Math.max(0, Math.min(100, ((totalDebt - debtAmount) / totalDebt) * 100));
+  document.getElementById('debtProgress').style.width = progress + '%';
+  const monthsLeft = debtAmount > 0 ? Math.ceil(debtAmount / DEBT_REPAYMENT) : 0;
+  const etaDate = new Date();
+  etaDate.setMonth(etaDate.getMonth() + monthsLeft);
+  document.getElementById('debtEta').textContent = debtAmount <= 0
+    ? '🎉 Debt-free!'
+    : `~${monthsLeft} months to go · Est. ${etaDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`;
+}
+
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  if (allTransactions.length === 0) {
+    list.innerHTML = '<div class="empty-state">No transactions yet</div>';
+    return;
+  }
+  const grouped = {};
+  allTransactions.forEach(tx => {
+    const ws = tx.week_start;
+    if (!grouped[ws]) grouped[ws] = [];
+    grouped[ws].push(tx);
+  });
+  list.innerHTML = Object.keys(grouped).sort((a,b) => b.localeCompare(a)).map(ws => {
+    const end = new Date(ws); end.setDate(end.getDate() + 6);
+    const txs = grouped[ws];
+    return `
+      <div class="week-group">
+        <div class="week-group-label">${formatShort(new Date(ws))} – ${formatShort(end)}</div>
+        ${txs.map(tx => `
+          <div class="tx-item" style="margin-bottom:8px;">
+            <div class="tx-icon ${tx.type}">${tx.type === 'spend' ? '🛒' : '💰'}</div>
+            <div class="tx-info">
+              <div class="tx-title">${escHtml(tx.title)}</div>
+              <div class="tx-meta">${tx.user_id} · ${formatDate(tx.created_at)}</div>
+            </div>
+            <div class="tx-amount ${tx.type}">${tx.type === 'spend' ? '-' : '+'}£${Number(tx.amount).toFixed(2)}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }).join('');
+}
+
+function renderSettings() {
+  document.getElementById('settingsWeekly').textContent = WEEKLY_BASE.toFixed(2);
+  updateDarkToggle();
+}
+
+// ─── TRANSACTIONS ──────────────────────────────────────────────────
+function openModal(type) {
+  modalType = type;
+  setModalType(type);
+  document.getElementById('txTitle').value = '';
+  document.getElementById('txAmount').value = '';
+  document.getElementById('txModal').classList.add('active');
+  setTimeout(() => document.getElementById('txTitle').focus(), 300);
+}
+
+function setModalType(type) {
+  modalType = type;
+  document.getElementById('modalSpendBtn').className = 'modal-type-btn' + (type === 'spend' ? ' active spend' : '');
+  document.getElementById('modalIncomeBtn').className = 'modal-type-btn' + (type === 'income' ? ' active income' : '');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+
+async function submitTransaction() {
+  const title = document.getElementById('txTitle').value.trim();
+  const amount = parseFloat(document.getElementById('txAmount').value);
+  if (!title) { showNotification('Please add a title'); return; }
+  if (!amount || amount <= 0) { showNotification('Please enter an amount'); return; }
+
+  const btn = document.getElementById('txSubmitBtn');
+  btn.disabled = true;
+
+  const { error } = await db.from('transactions').insert({
+    week_start: getWeekStart(),
+    type: modalType,
+    amount: amount,
+    title: title,
+    user_id: currentUser
+  });
+
+  btn.disabled = false;
+
+  if (error) { showNotification('Error saving. Check Supabase config.'); return; }
+
+  closeModal('txModal');
+  showNotification(modalType === 'spend' ? `Spent £${amount.toFixed(2)} ✓` : `Income £${amount.toFixed(2)} added ✓`);
+  await loadData();
+}
+
+async function deleteTransaction(id) {
+  const { error } = await db.from('transactions').delete().eq('id', id);
+  if (!error) {
+    showNotification('Removed ✓');
+    await loadData();
+  }
+}
+
+// ─── DECLARATION ───────────────────────────────────────────────────
+function checkMonthlyDeclaration() {
+  const today = new Date();
+  if (today.getDate() === 1) {
+    const lastPrompt = localStorage.getItem('lastDeclarationPrompt');
+    const thisMonth = `${today.getFullYear()}-${today.getMonth()}`;
+    if (lastPrompt !== thisMonth) {
+      localStorage.setItem('lastDeclarationPrompt', thisMonth);
+      setTimeout(() => openDeclarationModal(), 1500);
+    }
+  }
+}
+
+async function openDeclarationModal() {
+  const today = new Date();
+  document.getElementById('declarationMonth').textContent =
+    today.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+
+  const monthStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`;
+
+  const { data } = await db.from('monthly_declarations')
+    .select('*')
+    .gte('month', monthStr)
+    .lt('month', `${today.getFullYear()}-${String(today.getMonth()+2).padStart(2,'0')}-01`);
+
+  const zDecl = data?.find(d => d.user_id === 'Z');
+  const eDecl = data?.find(d => d.user_id === 'E');
+
+  // Show Z's state
+  if (zDecl) {
+    document.getElementById('declZStatus').textContent = '✓ Submitted';
+    document.getElementById('declZInputs').style.display = 'none';
+  } else {
+    document.getElementById('declZStatus').textContent = 'Not submitted';
+    document.getElementById('declZInputs').style.display = 'grid';
+  }
+
+  // Show E's state
+  if (eDecl) {
+    document.getElementById('declEStatus').textContent = '✓ Submitted';
+    document.getElementById('declEInputs').style.display = 'none';
+  } else {
+    document.getElementById('declEStatus').textContent = 'Not submitted';
+    document.getElementById('declEInputs').style.display = 'grid';
+  }
+
+  // If both submitted, show combined
+  if (zDecl && eDecl) {
+    const combined = (zDecl.savings - zDecl.debt) + (eDecl.savings - eDecl.debt);
+    document.getElementById('combinedNetDisplay').style.display = 'block';
+    document.getElementById('waitingIndicator').style.display = 'none';
+    const el = document.getElementById('combinedNetValue');
+    el.textContent = (combined >= 0 ? '+' : '-') + '£' + Math.abs(combined).toFixed(2);
+    el.style.color = combined >= 0 ? 'var(--green)' : 'var(--red)';
+    document.getElementById('declSubmitBtn').style.display = 'none';
+  } else if (zDecl || eDecl) {
+    document.getElementById('waitingIndicator').style.display = 'block';
+    document.getElementById('combinedNetDisplay').style.display = 'none';
+    document.getElementById('declSubmitBtn').style.display = 'block';
+  } else {
+    document.getElementById('waitingIndicator').style.display = 'none';
+    document.getElementById('combinedNetDisplay').style.display = 'none';
+    document.getElementById('declSubmitBtn').style.display = 'block';
+  }
+
+  document.getElementById('declarationModal').classList.add('active');
+}
+
+async function submitDeclaration() {
+  const savingsId = `decl${currentUser}Savings`;
+  const debtId = `decl${currentUser}Debt`;
+  const savings = parseFloat(document.getElementById(savingsId).value);
+  const debt = parseFloat(document.getElementById(debtId).value);
+
+  if (isNaN(savings) || isNaN(debt)) {
+    showNotification('Please fill in your savings and debt');
+    return;
+  }
+
+  const today = new Date();
+  const monthStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`;
+
+  const btn = document.getElementById('declSubmitBtn');
+  btn.disabled = true;
+
+  const { error } = await db.from('monthly_declarations').upsert({
+    month: monthStr,
+    user_id: currentUser,
+    savings: savings,
+    debt: debt
+  }, { onConflict: 'month,user_id' });
+
+  btn.disabled = false;
+
+  if (error) { showNotification('Error saving. Check Supabase.'); return; }
+
+  showNotification(`${currentUser}'s figures submitted ✓`);
+  await openDeclarationModal();
+  await loadData();
+}
+
+// ─── NAVIGATION ────────────────────────────────────────────────────
+function switchTab(tab) {
+  ['home','history','settings'].forEach(t => {
+    document.getElementById(`${t}Tab`).style.display = t === tab ? 'block' : 'none';
+    document.getElementById(`nav${t.charAt(0).toUpperCase()+t.slice(1)}`).classList.toggle('active', t === tab);
+  });
+  if (tab === 'history') renderHistory();
+  if (tab === 'settings') renderSettings();
+}
+
+// ─── DARK MODE ─────────────────────────────────────────────────────
+function toggleDark() {
+  isDark = !isDark;
+  document.body.classList.toggle('dark', isDark);
+  localStorage.setItem('dark', isDark);
+  updateDarkToggle();
+}
+function updateDarkToggle() {
+  const t = document.getElementById('darkToggle');
+  if (t) t.classList.toggle('on', isDark);
+}
+
+// ─── CHANGE PIN ────────────────────────────────────────────────────
+function changePinFlow() {
+  setupUser = currentUser;
+  setupPin1 = ''; setupPin2 = ''; setupStep = 'create';
+  document.getElementById('setupPinLabel').textContent = `${currentUser}, create new PIN`;
+  document.getElementById('setupPinHint').textContent = 'Choose a new 4-digit PIN';
+  document.getElementById('setupPinError').textContent = '';
+  updatePinDisplay('setupPinDisplay', '');
+  show('setupPinScreen');
+}
+
+// ─── HELPERS ───────────────────────────────────────────────────────
+function getWeekStart() {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = (day === 0 ? -6 : 1) - day;
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().split('T')[0];
+}
+
+function formatShort(d) {
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+function formatDate(str) {
+  return new Date(str).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatTime(str) {
+  return new Date(str).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showNotification(msg) {
+  const existing = document.querySelector('.notification');
+  if (existing) existing.remove();
+  const n = document.createElement('div');
+  n.className = 'notification';
+  n.textContent = msg;
+  document.body.appendChild(n);
+  setTimeout(() => n.remove(), 2500);
+}
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.remove('active');
+  });
+});
+</script>
+</body>
+</html>
