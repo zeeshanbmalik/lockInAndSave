@@ -556,9 +556,13 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('oneoffs_init','1');
   }
   document.getElementById('loadingScreen').style.display = 'none';
-  const pins = localStorage.getItem('pins');
-  const p = pins ? JSON.parse(pins) : {};
-  showScreen(p.Z && p.E ? 'loginUserScreen' : 'setupUserScreen');
+  const pins = JSON.parse(localStorage.getItem('pins') || '{}');
+  if (pins.Z && pins.E) {
+    showScreen('loginUserScreen');
+  } else {
+    // Clear any partial pin state and start setup fresh
+    showScreen('setupUserScreen');
+  }
 });
 
 function showScreen(id) {
@@ -593,8 +597,13 @@ function confirmSetup() {
   if (sp1!==sp2) { document.getElementById('setupPinError').textContent="PINs don't match"; spStep='create'; sp1=''; sp2=''; document.getElementById('setupPinLabel').textContent=`${setupUser}, create your PIN`; pinDisplay('setupPinDisplay',''); return; }
   const pins=JSON.parse(localStorage.getItem('pins')||'{}'); pins[setupUser]=sp1; localStorage.setItem('pins',JSON.stringify(pins));
   notify(`${setupUser}'s PIN set ✓`);
-  if (pins.Z&&pins.E) setTimeout(()=>{currentUser=setupUser;enterApp();},800);
-  else setTimeout(()=>showScreen('setupUserScreen'),800);
+  if (pins.Z && pins.E) {
+    // Both PINs set — go to login so the current user authenticates properly
+    setTimeout(()=>showScreen('loginUserScreen'), 800);
+  } else {
+    // Still need the other person's PIN
+    setTimeout(()=>showScreen('setupUserScreen'), 800);
+  }
 }
 
 // ── LOGIN ──────────────────────────────────────────────────────────
